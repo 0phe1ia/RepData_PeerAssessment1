@@ -2,24 +2,126 @@
 title: "Reproducible Research: Peer Assessment 1"
 output: 
   html_document:
+    pandoc_args: [
+      "+RTS", "-K64m",
+      "-RTS"
+    ] 
     keep_md: true
 ---
+## Loading libraries, loading data and preprocessing the data. 
+```{r}
+if("plyr" %in% rownames(installed.packages()) == FALSE)
+      {
+            install.packages("plyr")
+      }
+      
+      if("ggplot2" %in% rownames(installed.packages()) == FALSE)
+      {
+            install.packages("ggplot2")
+      }
 
+library(plyr)
+library(ggplot2)
+tbl <- read.csv("activity.csv", header = TRUE)
+```
+####A sample of the loaded data is shown.
+```{r}
+head(tbl)
+```
 
-## Loading and preprocessing the data
+## What is the mean total number of steps taken per day?
+#### Calculate the total mean and median number of steps per day and report it. Then, make a histogram of the total number of steps taken each day.
+#### NOTE: Missing values are ignored.  
+```{r}
+res=ddply(tbl, .(date), summarize, SUM=sum(steps), MEAN=mean(steps), MEDIAN=median(steps))
 
+hist(res$SUM, 
+      main="Histogram of the Total Number of Steps Taken Per Day",
+      xlab="Steps Taken Per Day",
+      col="gray",
+      labels=TRUE,
+      ylim =c(0, 30)
+     )
 
-
-## What is mean total number of steps taken per day?
-
-
+res
+```
 
 ## What is the average daily activity pattern?
+#### Make a time series plot (type="l") of the 5 minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
+```{r}
+res2=ddply(tbl, c("interval"), summarize, MEAN=mean(steps, na.rm=TRUE))
+plot(res2$interval, res2$MEAN, 
+      type="l",
+      main="Time series plot of the 5-min interval and the avg steps taken across all days",
+      xlab="Intervals",
+      ylab="Mean number of steps taken",
+      ylim =c(0, 250)
+     )
+```
 
-
+#### Which 5 minute interval, on average across all days, contains the max number of steps?
+```{r}
+res3 <- res2[order(res2$MEAN, decreasing=TRUE), ]
+res3[1, ]
+```
 
 ## Imputing missing values
+#### Calculate & report the total of missing values in the dataset. 
+```{r}
+num_of_missing_values <- sum(is.na(tbl$steps))
+num_of_missing_values
+```
 
+#### Use the mean of each interval to fill in the missing data in the raw data file.
+```{r}
+tbl2 <- merge(x=tbl, y=res2, by="interval", all.x=TRUE)
+tbl2$new_steps <- ifelse(is.na(tbl2$steps), tbl2$MEAN, tbl2$steps)
+```
 
+#### A sample of the new dataset is shown, where the "new_steps" column contains the imputed values. 
+```{r}
+head(tbl2)
+```
+
+#### Using the new dataset, calculate the total number of steps taken each day & calculate and report the mean and median total number of steps taken per day. Then make a histogram of the total number of steps taken each day.
+```{r}
+res3=ddply(tbl2, .(date), summarize, SUM=sum(new_steps), MEAN=mean(new_steps), MEDIAN=median(new_steps))
+
+hist(res3$SUM, 
+      main="Histogram of the Total Number of Steps Taken Per Day (After Imputing Data",
+      xlab="Steps Taken Per Day",
+      col="gray",
+      labels=TRUE,
+      ylim =c(0, 40)
+     )
+
+res3
+```
+
+#### Do these values differ from the estimates from the 1st part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps. 
+Yes, there is a small difference. The frequency of steps in the 10-15K step range has increased from 28 to 36.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+#### Create a new factor variable with 2 levels (weekday and weekend). 
+```{r}
+tbl$day <- weekdays(as.Date(tbl$date))
+tbl$daytype <- ifelse(tbl$day %in% c("Saturday", "Sunday"), "weekend", "weekday")
+```
+
+#### A sample is shown below.
+```{r}
+head(tbl)
+```
+
+#### Make a panel plot containing a time series plot (type="l") of the 5 minute interval (x-axis) and the average number of steps taken, averaged across all weekdays/weekend days (y-axis).
+```{r}
+res4=ddply(tbl, c("interval","daytype"), summarize, MEAN=mean(steps, na.rm=TRUE))
+
+xlabel <- "Interval"
+ylabel <- "Number of steps taken"
+maintitle <- "Time series plot of the 5-min interval and the avg steps taken across all days"
+g <- ggplot(res4, aes(x=interval, y=MEAN)) + facet_grid(daytype~.) + xlab(xlabel) + ylab(ylabel) + ggtitle(maintitle)
+print(g + geom_line())
+
+res4
+```
